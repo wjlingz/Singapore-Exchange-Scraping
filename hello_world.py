@@ -20,7 +20,9 @@ def start_download_pipeline():
     parser = argparse.ArgumentParser(
         description="Download files from SGX server for a specific date."
     )
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group(
+        required=True
+    )  # Either today or historical
 
     group.add_argument(
         "--today", action="store_true", help="Download today's file only"

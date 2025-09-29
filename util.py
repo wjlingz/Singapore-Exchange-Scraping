@@ -68,7 +68,8 @@ def calculate_date_index_offset(date_string):
     print(
         f"""
         Target Date: {date_obj}, Estimated Index: {estimated_index}, \n\
-        Actual Date: {date_obj_from_file_name}, Offset: {offset}, Actual Index: {estimated_index + offset}
+        Actual Date: {date_obj_from_file_name}, Actual Index: {estimated_index + offset}, \n\
+        Offset: {offset}
         """
     )
 
@@ -92,16 +93,65 @@ def url_generation(date_string):
     ]
 
     for file in files_to_download:
-        url = f"https://links.sgx.com/1.0.0/derivatives-historical/{estimate_date_index(date_string)}/{file}"
+        url = f"https://links.sgx.com/1.0.0/derivatives-historical/\
+            {estimate_date_index(date_string)}/{file}"
         urls.append(url)
 
     print(f"Using index {estimate_date_index(date_string)} for date {date_string}")
     return urls
 
 
+def check_existence(responses):
+    """Check if all responses are successful (status code 200).
+
+    Args:
+        responses (list): List of response objects from requests.
+
+    Returns:
+        bool: True if all responses are successful, False otherwise.
+    """
+    for response in responses:
+        if response.status_code != 200:
+            print(
+                f"Error: Received status code {response.status_code} for URL {response.url}"
+            )
+            return False
+        if "CustomErrorPage" in response.url:
+            print(f"Error: File not found with URL {response.url}")
+            return False
+    return True
+
+
+def check_date_match(date_string, responses):
+    """Check if the date in the file names from responses matches the requested date.
+
+    Args:
+        date_string (str): The requested date in "YYYY-MM-DD" format.
+        responses (list): List of response objects from requests.
+
+    Returns:
+        bool: True if all file dates match the requested date, False otherwise.
+    """
+    requested_date_formatted = date_string.replace("-", "")
+    for response in responses:
+        file_name_content = response.headers.get("Content-Disposition", "")
+
+        if "structure" in file_name_content:
+            continue  # Skip data_structure files, they dont have date in file name
+
+        file_date = re.search(r"(\d{8})", file_name_content).group(1)
+        if file_date != requested_date_formatted:
+            print(
+                f"Error: The date in the file name {file_date} does not match the requested date {date_string}."
+            )
+            return False
+    return True
+
+
 def download_files(date_string):
     """
     Download all 4 types of files from SGX server for a specific date.
+    All four files are a unit and should be downloaded or be failed together.
 
     Args:
         date_string (str): The date in "YYYY-MM-DD" format.
@@ -115,26 +165,33 @@ def download_files(date_string):
 
     urls = url_generation(date_string)
 
-    # Verify the date from the file name matches the requested date
-    response = requests.get(urls[0])
-    file_name_content = response.headers.get("Content-Disposition", "")
-    file_date = re.search(r"(\d{8})", file_name_content).group(1)
-
-    if file_date != date_string.replace("-", ""):
-        print(
-            f"Error: The date in the file name {file_date} does not match the requested date {date_string}."
-        )
+    try:
+        responses = [requests.get(url) for url in urls]
+    except requests.exceptions.RequestException as e:
+        print(f"Error: Failed to download files for date {date_string}. Exception: {e}")
         return
 
-    for url in urls:
-        response = requests.get(url)
-        file_name = url.split("/")[-1]
-        file_path = f"{folder}/{file_date}_{file_name}"
+    # Check if all responses are successful
+    if not check_existence(responses):
+        print(f"Error: One or more files do not exist for date {date_string}.")
+        return
+
+    # Check if the date in the file names match the requested date
+    if not check_date_match(date_string, responses):
+        print(f"Error: Date mismatch for files from date {date_string}.")
+        return
+
+    print(f"Files with correct date has been found: {date_string}")
+
+    for response in responses:
+        file_name = response.url.split("/")[-1]
+        file_path = f"{folder}/{date_string}_{file_name}"
         with open(file_path, "wb") as f:
             f.write(response.content)
-        print(f"Downloaded {file_date}_{file_name}")
+        print(f"Downloaded {date_string}_{file_name}")
 
     print(f"All files downloaded for date {date_string}")
+    return 1
 
 
 def download_files_within_range(start_date, end_date):
@@ -154,18 +211,36 @@ def download_files_within_range(start_date, end_date):
 
     current_date = start_date_obj
     while current_date <= end_date_obj:
+
+        # Skip weekends
+        if current_date.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+            print(f"Skipping weekend date: {current_date.strftime('%Y-%m-%d')}")
+            current_date += timedelta(days=1)
+            continue
+
         date_string = current_date.strftime("%Y-%m-%d")
         download_files(date_string)
         current_date += timedelta(days=1)
 
 
-# DATE = "2025-09-23"  # Wednesday
+# DATE = "2025-09-30"  # Wednesday
 # print(url_generation(DATE))
 # download_files(DATE)
 # print(estimate_date_index("2025-01-09"))
 # calculate_date_index_offset("2025-09-22")
-# download_files_within_range("2025-09-22", "2025-09-24")
+download_files_within_range("2025-09-19", "2025-09-23")
 
 # TODO: Add logging
 # TODO: Add retry mechanism for failed downloads
 # TODO: Handle no file found
+
+# Consider
+# Raise_for_status for requests
+# Exponential backoff for retries
+# Saving dates of failed downloads to a log file for later retry
+# Circuit breaker pattern to avoid overwhelming the server with requests
+# Check for correctness of downloaded files (e.g., checksum verification)
+# Check for existence of files before downloading
+# Graceful degradation (e.g., skip a date if files are not found, but continue with others)
+# Give documentation on how to trigger retry for failed downloads
+# Include global variable OFFSET, and documentation on how to update it when there are changes in SGX server behavior
