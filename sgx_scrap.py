@@ -1,9 +1,10 @@
 """ """
 
 import argparse
-import requests
-import re
 from datetime import datetime
+import logging
+
+from logger import setup_logging
 from util import download_files_within_range
 
 
@@ -61,8 +62,7 @@ def start_download_pipeline():
         start_date_obj = datetime.strptime(start_date_string, "%Y-%m-%d")
         end_date_obj = datetime.strptime(end_date_string, "%Y-%m-%d")
     except ValueError:
-        print("Incorrect date format, should be YYYY-MM-DD")
-        return
+        parser.error("Incorrect/invalid date format, should be YYYY-MM-DD")
 
     # Validate date sequence
     if start_date_obj > end_date_obj:
@@ -74,10 +74,11 @@ def start_download_pipeline():
     download_files_within_range(start_date_string, end_date_string)
 
     # Finish
-    print("Download pipeline completed.")
+    logging.info("Download pipeline completed.")
 
 
 if __name__ == "__main__":
+    setup_logging()
     start_download_pipeline()
 
 

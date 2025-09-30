@@ -8,6 +8,7 @@ Util files for various helper functions and utilities.
 from time import sleep
 from datetime import datetime, time, timedelta
 from pathlib import Path
+import logging
 
 import re
 import requests
@@ -66,7 +67,7 @@ def calculate_date_index_offset(date_string):
     date_obj_from_file_name = datetime.strptime(date_from_file_name.group(1), "%Y%m%d")
     offset = (date_obj - date_obj_from_file_name).days
 
-    print(
+    logging.info(
         f"""
         Target Date: {date_obj}, Estimated Index: {estimated_index}, \n\
         Actual Date: {date_obj_from_file_name}, Actual Index: {estimated_index + offset}, \n\
@@ -98,7 +99,9 @@ def url_generation(date_string):
             {estimate_date_index(date_string)}/{file}"
         urls.append(url)
 
-    print(f"Using index {estimate_date_index(date_string)} for date {date_string}")
+    logging.debug(
+        f"Using index {estimate_date_index(date_string)} for date {date_string}"
+    )
     return urls
 
 
@@ -113,12 +116,12 @@ def check_existence(responses):
     """
     for response in responses:
         if response.status_code != 200:
-            print(
+            logging.error(
                 f"Error: Received status code {response.status_code} for URL {response.url}"
             )
             return False
         if "CustomErrorPage" in response.url:
-            print(f"Error: File not found with URL {response.url}")
+            logging.error(f"Error: File not found with URL {response.url}")
             return False
     return True
 
@@ -142,7 +145,7 @@ def check_date_match(date_string, responses):
 
         file_date = re.search(r"(\d{8})", file_name_content).group(1)
         if file_date != requested_date_formatted:
-            print(
+            logging.error(
                 f"Error: The date in the file name {file_date} does not match the requested date {date_string}."
             )
             return False
@@ -157,7 +160,7 @@ def download_files(date_string):
     Args:
         date_string (str): The date in "YYYY-MM-DD" format.
     """
-    print(
+    logging.info(
         f"Downloading files for date {date_string} ({datetime.strptime(date_string, '%Y-%m-%d').strftime('%A')})..."
     )
     # Create folder with date_string as name
@@ -169,29 +172,31 @@ def download_files(date_string):
     try:
         responses = [requests.get(url) for url in urls]
     except requests.exceptions.RequestException as e:
-        print(f"Error: Failed to download files for date {date_string}. Exception: {e}")
+        logging.error(
+            f"Error: Failed to download files for date {date_string}. Exception: {e}"
+        )
         return 0
 
     # Check if all responses are successful
     if not check_existence(responses):
-        print(f"Error: One or more files do not exist for date {date_string}.")
+        logging.error(f"Error: One or more files do not exist for date {date_string}.")
         return 0
 
     # Check if the date in the file names match the requested date
     if not check_date_match(date_string, responses):
-        print(f"Error: Date mismatch for files from date {date_string}.")
+        logging.error(f"Error: Date mismatch for files from date {date_string}.")
         return 0
 
-    print(f"Files with correct date has been found: {date_string}")
+    logging.debug(f"Files with correct date has been found: {date_string}")
 
     for response in responses:
         file_name = response.url.split("/")[-1]
         file_path = f"{folder}/{date_string}_{file_name}"
         with open(file_path, "wb") as f:
             f.write(response.content)
-        print(f"Downloaded {date_string}_{file_name}")
+        logging.debug(f"Downloaded {date_string}_{file_name}")
 
-    print(f"All files downloaded for date {date_string}")
+    logging.info(f"All files downloaded for date {date_string}")
     return 1
 
 
@@ -217,14 +222,14 @@ def download_files_within_range(start_date, end_date):
 
         # Circuit breaker to avoid overwhelming the server with requests
         if circuit_breaker_count >= CIRCUIT_BREAKER_THRESHOLD:
-            print(
+            logging.error(
                 f"{circuit_breaker_count} consecutive fails detect, circuit breaker triggered. Stopping further downloads."
             )
             break
 
         # Skip weekends
         if current_date.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
-            print(f"Skipping weekend date: {current_date.strftime('%Y-%m-%d')}")
+            logging.info(f"Skipping weekend date: {current_date.strftime('%Y-%m-%d')}")
             current_date += timedelta(days=1)
             continue
 
@@ -242,16 +247,16 @@ def download_files_within_range(start_date, end_date):
         if success_flag == 0:
             current_date_fails += 1
             circuit_breaker_count += 1
-            print(
+            logging.error(
                 f"Failed to download files for date {date_string}. Attempt {current_date_fails} of {MAX_CURRENT_DATE_RETRIES}."
             )
             if current_date_fails < MAX_CURRENT_DATE_RETRIES:
-                print(f"Retrying download for date {date_string}...")
+                logging.info(f"Retrying download for date {date_string}...")
                 # Wait before retrying (optional)
                 sleep(2**current_date_fails)  # Exponential backoff
                 continue  # Retry the same date
             else:
-                print(
+                logging.error(
                     f"Max retries reached for date {date_string}. Moving to next date."
                 )
 
@@ -293,3 +298,4 @@ def download_files_within_range(start_date, end_date):
 # 2. 4 files are a unit, should be downloaded or be failed together
 # 3. weekends and public holidays, no files available, but sometime could have files
 # 4. could add more information as a summary, such as total files downloaded, total size, total time taken
+# 5. log file are becoming bigger over time, need to optimize it
