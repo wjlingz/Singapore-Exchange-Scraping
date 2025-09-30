@@ -1,3 +1,5 @@
+"""Logging configuration module."""
+
 import logging
 import sys
 from datetime import datetime
@@ -5,6 +7,11 @@ import os
 
 
 def setup_logging():
+    """Setup logging configuration.
+
+    Returns:
+        logger: Configured logger instance. Return is optional, does not need to be used.
+    """
     # Setup logging
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -36,6 +43,6 @@ def setup_logging():
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
-    logging.info("Logging is set up.")
+    logging.debug("Logging is set up.")
 
     return logger

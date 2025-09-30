@@ -1,8 +1,9 @@
-""" """
+"""Main file to run the SGX download pipeline."""
 
 import argparse
 from datetime import datetime
 import logging
+import sys
 
 from logger import setup_logging
 from util import download_files_within_range
@@ -12,9 +13,11 @@ def start_download_pipeline():
     """
     Function to start the download pipeline.
     1. CLI argparse
-    2. File name & date validation
-    3. Correct URL generation
-    4. Download file
+    2. Validate date format and sequence
+    3. Download files within date range
+    4. Logging
+    5. Finish
+    6. Example usage
     """
 
     # CLI argparse logic
@@ -71,6 +74,10 @@ def start_download_pipeline():
         )
 
     # Download files
+    logging.info(
+        f"Starting download pipeline...{start_date_string} to {end_date_string}"
+    )
+    logging.info(f"Command executed: {" ".join(sys.argv)}")
     download_files_within_range(start_date_string, end_date_string)
 
     # Finish
