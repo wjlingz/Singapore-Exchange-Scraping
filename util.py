@@ -292,27 +292,3 @@ def download_files_within_range(start_date, end_date):
         logging.warning(
             f"Some dates failed to download and may require manual retries: {dates_for_manual_retries}"
         )
-
-
-# DATE = "2025-09-30"  # Wednesday
-# print(url_generation(DATE))
-# download_files(DATE)
-# print(estimate_date_index("2025-01-09"))
-# calculate_date_index_offset("2025-09-22")
-# download_files_within_range("2025-09-19", "2025-09-23")
-
-# Test retries logic by adding explicit exception raise in download_files function in different places
-# download_files_within_range("2025-09-19", "2025-09-25")
-
-
-# Consider
-# Include global variable OFFSET, and documentation on how to update it when there are changes in SGX server behavior
-
-
-# Concern
-# 1. dont know what kind of exception could happen
-# 2. 4 files are a unit, should be downloaded or be failed together
-# 3. weekends and public holidays, no files available, but sometime could have files
-# 4. could add more information as a summary, such as total files downloaded, total size, total time taken
-# 5. log file are becoming bigger over time, need to optimize it
-# 6. date match checking relies on the file name format, if SGX change the format, need to update the regex

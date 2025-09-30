@@ -26,17 +26,12 @@ def setup_logging():
 
     # File handler - only WARNING and above
     file_handler = logging.FileHandler(log_filename, encoding="utf-8")
-    file_handler.setLevel(logging.INFO)  # Only INFO, WARNING, ERROR, CRITICAL
+    file_handler.setLevel(logging.DEBUG)  # All levels
     file_handler.setFormatter(formatter)
 
     # Console handler - all levels (DEBUG and above)
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)  # All levels
-    console_handler.setFormatter(formatter)
-
-    # Console handler - all levels (DEBUG and above)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)  # All levels
+    console_handler.setLevel(logging.INFO)  # Only INFO and above
     console_handler.setFormatter(formatter)
 
     # Add handlers to logger
