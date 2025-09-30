@@ -36,15 +36,18 @@ def start_download_pipeline():
     )
     args = parser.parse_args()
 
+    # Request for todays file
     start_date_string = end_date_string = None
     if args.today:
         start_date_string = end_date_string = datetime.today().strftime("%Y-%m-%d")
+    # Request for historical files
     elif args.historical:
-        if len(args.historical) == 1:
+        if len(args.historical) == 1:  # Single date
             start_date_string = end_date_string = args.historical[0]
-        elif len(args.historical) == 2:
+        elif len(args.historical) == 2:  # Date range
             start_date_string = args.historical[0]
             end_date_string = args.historical[1]
+
         else:  # More than 2 dates provided
             parser.error(
                 "--historical requires exactly 1 or 2 dates in YYYY-MM-DD format."
@@ -55,11 +58,17 @@ def start_download_pipeline():
 
     # Validate date format
     try:
-        datetime.strptime(start_date_string, "%Y-%m-%d")
-        datetime.strptime(end_date_string, "%Y-%m-%d")
+        start_date_obj = datetime.strptime(start_date_string, "%Y-%m-%d")
+        end_date_obj = datetime.strptime(end_date_string, "%Y-%m-%d")
     except ValueError:
         print("Incorrect date format, should be YYYY-MM-DD")
         return
+
+    # Validate date sequence
+    if start_date_obj > end_date_obj:
+        parser.error(
+            "--historical start date must be earlier or equal to end date in YYYY-MM-DD format."
+        )
 
     # Download files
     download_files_within_range(start_date_string, end_date_string)
@@ -74,6 +83,6 @@ if __name__ == "__main__":
 
 # --- IGNORE ---
 # Example Usage
-# python hello_world.py --today
-# python hello_world.py --historical 2025-01-09
-# python hello_world.py --historical 2025-01-09 2025-01-12
+# python sgx_scrap.py --today
+# python sgx_scrap.py --historical 2025-01-09
+# python sgx_scrap.py --historical 2025-01-09 2025-01-12

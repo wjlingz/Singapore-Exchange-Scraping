@@ -5,7 +5,8 @@ Util files for various helper functions and utilities.
 3. Scheduling Setup
 """
 
-from datetime import datetime, timedelta
+from time import sleep
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 import re
@@ -25,7 +26,7 @@ def estimate_date_index(date_string):
     # 2025-01-01 starts on key index 5845, Wednesday
     # 2025-01-06 starts on key index 5850, Monday
     initial_date = datetime.strptime("2025-01-06", "%Y-%m-%d")
-    initial_index = 5849
+    initial_index = 5850  # 5849
 
     target_date = datetime.strptime(date_string, "%Y-%m-%d")
     days_difference = (target_date - initial_date).days
@@ -169,17 +170,17 @@ def download_files(date_string):
         responses = [requests.get(url) for url in urls]
     except requests.exceptions.RequestException as e:
         print(f"Error: Failed to download files for date {date_string}. Exception: {e}")
-        return
+        return 0
 
     # Check if all responses are successful
     if not check_existence(responses):
         print(f"Error: One or more files do not exist for date {date_string}.")
-        return
+        return 0
 
     # Check if the date in the file names match the requested date
     if not check_date_match(date_string, responses):
         print(f"Error: Date mismatch for files from date {date_string}.")
-        return
+        return 0
 
     print(f"Files with correct date has been found: {date_string}")
 
@@ -205,12 +206,21 @@ def download_files_within_range(start_date, end_date):
     start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
     end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
 
-    if start_date_obj > end_date_obj:
-        print("Error: Start date must be before or equal to end date.")
-        return
+    # Initialization and start the download process
+    CIRCUIT_BREAKER_THRESHOLD = 10  # Triggered if there are 10 consecutive failures
+    circuit_breaker_count = 0
+    MAX_CURRENT_DATE_RETRIES = 3  # Max retries for the same date
+    current_date_fails = 0
 
     current_date = start_date_obj
     while current_date <= end_date_obj:
+
+        # Circuit breaker to avoid overwhelming the server with requests
+        if circuit_breaker_count >= CIRCUIT_BREAKER_THRESHOLD:
+            print(
+                f"{circuit_breaker_count} consecutive fails detect, circuit breaker triggered. Stopping further downloads."
+            )
+            break
 
         # Skip weekends
         if current_date.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
@@ -218,9 +228,40 @@ def download_files_within_range(start_date, end_date):
             current_date += timedelta(days=1)
             continue
 
+        # Initialize date_string and setup for failed retries
         date_string = current_date.strftime("%Y-%m-%d")
-        download_files(date_string)
+        success_flag = 0
+
+        # Record if current download is successful or failed.
+        try:
+            success_flag = download_files(date_string)
+        except Exception as e:
+            success_flag = 0
+
+        # Circuit breaker logic & retry mechanism
+        if success_flag == 0:
+            current_date_fails += 1
+            circuit_breaker_count += 1
+            print(
+                f"Failed to download files for date {date_string}. Attempt {current_date_fails} of {MAX_CURRENT_DATE_RETRIES}."
+            )
+            if current_date_fails < MAX_CURRENT_DATE_RETRIES:
+                print(f"Retrying download for date {date_string}...")
+                # Wait before retrying (optional)
+                sleep(2**current_date_fails)  # Exponential backoff
+                continue  # Retry the same date
+            else:
+                print(
+                    f"Max retries reached for date {date_string}. Moving to next date."
+                )
+
+        # Reset circuit breaker count on success
+        else:
+            circuit_breaker_count = 0
+
+        # Proceed next step if not stopped before this.
         current_date += timedelta(days=1)
+        current_date_fails = 0  # Reset fails for next date
 
 
 # DATE = "2025-09-30"  # Wednesday
@@ -228,19 +269,27 @@ def download_files_within_range(start_date, end_date):
 # download_files(DATE)
 # print(estimate_date_index("2025-01-09"))
 # calculate_date_index_offset("2025-09-22")
-download_files_within_range("2025-09-19", "2025-09-23")
+# download_files_within_range("2025-09-19", "2025-09-23")
+
+# Test retries logic by adding explicit exception raise in download_files function in different places
+# download_files_within_range("2025-09-19", "2025-09-25")
+
 
 # TODO: Add logging
-# TODO: Add retry mechanism for failed downloads
-# TODO: Handle no file found
+# TODO: Log the failed dates to a file for retry
 
 # Consider
-# Raise_for_status for requests
 # Exponential backoff for retries
 # Saving dates of failed downloads to a log file for later retry
 # Circuit breaker pattern to avoid overwhelming the server with requests
 # Check for correctness of downloaded files (e.g., checksum verification)
-# Check for existence of files before downloading
 # Graceful degradation (e.g., skip a date if files are not found, but continue with others)
 # Give documentation on how to trigger retry for failed downloads
 # Include global variable OFFSET, and documentation on how to update it when there are changes in SGX server behavior
+
+
+# Concern
+# 1. dont know what kind of exception could happen
+# 2. 4 files are a unit, should be downloaded or be failed together
+# 3. weekends and public holidays, no files available, but sometime could have files
+# 4. could add more information as a summary, such as total files downloaded, total size, total time taken
