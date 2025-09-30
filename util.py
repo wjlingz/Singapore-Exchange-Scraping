@@ -26,7 +26,7 @@ def estimate_date_index(date_string):
     # 2025-01-01 starts on key index 5845, Wednesday
     # 2025-01-06 starts on key index 5850, Monday
     initial_date = datetime.strptime("2025-01-06", "%Y-%m-%d")
-    initial_index = 5850  # 5849
+    initial_index = 5849
 
     target_date = datetime.strptime(date_string, "%Y-%m-%d")
     days_difference = (target_date - initial_date).days
